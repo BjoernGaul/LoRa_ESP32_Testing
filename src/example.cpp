@@ -22,7 +22,7 @@
 
   created 05 August 2018
   by Luiz H. Cassettari
-*/
+
 
 #include <SPI.h>              // include libraries
 #include <LoRa.h>
@@ -114,3 +114,4 @@ boolean runEvery(unsigned long interval)
   }
   return false;
 }
+*/

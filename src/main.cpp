@@ -3,10 +3,10 @@
 #include <SPI.h>
 
 //Joystick
-#define xPinA D3  // xPin Joystick A
-#define yPinA D5  // yPin Joystick A
-#define yPinB D6  // yPin Joystick B
-#define xPinB D7  // xPin Joystick B
+#define xPinA A3  // xPin Joystick A
+#define yPinA A2  // yPin Joystick A
+#define yPinB A0  // yPin Joystick B
+#define xPinB A1  // xPin Joystick B
 
 //LoRa
 #define DIO0 D3
@@ -14,6 +14,17 @@
 #define frequency 433E6
 
 void sendJoystick();
+void onReceive(int packetSize);
+void onTxDone();
+void LoRa_rxMode();
+void LoRa_txMode();
+void LoRa_sendMessage(String message);
+boolean runEvery(unsigned long interval);
+int readJoystick(int xPin,int yPin);
+
+int directionA = 0;
+int directionB = 0;
+bool taskSend = false;
 
 void setup(){
   Serial.begin(9600);
@@ -26,31 +37,55 @@ void setup(){
   LoRa.onReceive(onReceive);
   LoRa.onTxDone(onTxDone);
   LoRa_rxMode();
-  readJoystick(xPinA,yPinA);
+  Serial.println("LoRa init succeeded.");
 }
 
 void loop(){
-  if(runEvery(500))
+  if(runEvery(1000))
   {
-    sendJoystick();
+    //Serial.println("Read JoystickA");
+    directionA = readJoystick(xPinA,yPinA);
+    //Serial.println("Read JoystickB");
+    //directionB = readJoystick(xPinB,yPinB);
+    //Serial.println("Done Joystick");
+    if(directionA || directionB)
+    {
+      sendJoystick();
+      LoRa_rxMode();
+      taskSend = true;
+    }else if((!(directionA || directionB))&&taskSend){
+      taskSend = false;
+      LoRa_sendMessage("Stop");
+      LoRa_rxMode();
+      //Serial.println("Stop send");
+    }
+
   }
 }
 
 void LoRa_rxMode(){
+  //Serial.println("LoRa_rxMode");
   LoRa.enableInvertIQ();                // active invert I and Q signals
   LoRa.receive();                       // set receive mode
 }
 
 void LoRa_txMode(){
-  LoRa.idle();                          // set standby mode
-  LoRa.disableInvertIQ();               // normal mode
+  //Serial.println("LoRa_txMode");
+  LoRa.idle();  
+  //Serial.println("idle done");          // set standby mode;
+  LoRa.disableInvertIQ();              // normal mode
+  //Serial.println("disableInvertIQ done");
 }
 
 void LoRa_sendMessage(String message) {
-  LoRa_txMode();                        // set tx mode
+  LoRa_txMode();                       // set tx mode
+  //Serial.println("Begin message");
   LoRa.beginPacket();                   // start packet
+  //Serial.println("Begin packet done");
   LoRa.print(message);                  // add payload
-  LoRa.endPacket(true);                 // finish packet and send it
+  //Serial.println("Print done");
+  LoRa.endPacket(false);                 // finish packet and send it
+  //Serial.println("End packet done");
 }
 
 void onReceive(int packetSize) {
@@ -83,33 +118,20 @@ boolean runEvery(unsigned long interval)
 
 int readJoystick(int xPin,int yPin)
 {
-    static uint16_t lastxA = 0;
-    static uint16_t lastyA = 0;
-    static uint16_t lastxB = 0;
-    static uint16_t lastyB = 0;
     int xValue = analogRead(xPin);
     int yValue = analogRead(yPin);
 
-    if(xPin == xPinA)
-    {
-      if(xValue == lastxA && yValue == lastyA)
-      {
-        return 0;
-      }
-      lastxA = xValue;
-      lastyA = yValue;
-    }
-    else
-    {
-      if(xValue == lastxB && yValue == lastyB)
-      {
-        return 0;
-      }
-      lastxB = xValue;
-      lastyB = yValue;
-    }
-    
-    if(xValue < 500)
+    Serial.print("xPin: ");
+    Serial.print(xPin);
+    Serial.print(" yPin: ");
+    Serial.println(yPin);
+
+    Serial.print("xValue: ");
+    Serial.print(xValue);
+    Serial.print(" yValue: ");
+    Serial.println(yValue);
+
+    if(xValue < 2000)
     {
       Serial.println("Left");
       return 1;
@@ -119,7 +141,7 @@ int readJoystick(int xPin,int yPin)
       Serial.println("Right");
       return 2;
     }
-    else if(yValue < 500)
+    else if(yValue < 2000)
     {
       Serial.println("Up");
       return 3;
@@ -128,47 +150,55 @@ int readJoystick(int xPin,int yPin)
     {
       Serial.println("Down");
       return 4;
+    }else{
+      return 0;
     }
 }
 
 void sendJoystick(){
-  if(readJoystick(xPinA,yPinA)){
-    switch (readJoystick(xPinA,yPinA))
-    {
-      case 1:
-        LoRa_sendMessage("Left");
-        break;
-      case 2:
-        LoRa_sendMessage("Right");
-        break;
-      case 3:
-        LoRa_sendMessage("Up");
-        break;
-      case 4: 
-        LoRa_sendMessage("Down");
-        break;
-      default:
-        break;
-    }
-  }
 
-  if(readJoystick(xPinB,yPinB)){
-    switch (readJoystick(xPinB,yPinB))
+  Serial.println(directionA);
+  Serial.println(directionB);
+
+  if(directionA){
+    switch (directionA)
     {
       case 1:
-        LoRa_sendMessage("Left");
+        LoRa_sendMessage("LeftA");
         break;
       case 2:
-        LoRa_sendMessage("Right");
+        LoRa_sendMessage("RightA");
         break;
       case 3:
-        LoRa_sendMessage("Up");
+        LoRa_sendMessage("UpA");
         break;
       case 4: 
-        LoRa_sendMessage("Down");
+        LoRa_sendMessage("DownA");
         break;
       default:
         break;
     }
   }
+  //Serial.println("Done A");
+  /*
+  if(directionB){
+    switch (directionB)
+    {
+      case 1:
+        LoRa_sendMessage("LeftB");
+        break;
+      case 2:
+        LoRa_sendMessage("RightB");
+        break;
+      case 3:
+        LoRa_sendMessage("UpB");
+        break;
+      case 4: 
+        LoRa_sendMessage("DownB");
+        break;
+      default:
+        break;
+    }
+  }
+  */
 }
