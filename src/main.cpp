@@ -10,10 +10,10 @@
 
 //LoRa
 #define DIO0 D3
-#define NSS D5
+#define NSS D7
 #define frequency 433E6
 
-void sendJoystick();
+void sendJoystick(int joypos);
 void onReceive(int packetSize);
 void onTxDone();
 void LoRa_rxMode();
@@ -21,14 +21,17 @@ void LoRa_txMode();
 void LoRa_sendMessage(String message);
 boolean runEvery(unsigned long interval);
 int readJoystick(int xPin,int yPin);
+void manageSend();
 
-int directionA = 0;
-int directionB = 0;
-bool taskSend = false;
+int joyLeft = 0;
+int joyRight = 0;
+int taskLeft = 0;
+int taskRight = 0;
 
 void setup(){
   Serial.begin(9600);
-
+  delay(1000);
+  Serial.println("LoRa Start");
   LoRa.setPins( NSS , -1 , DIO0 );
   if (!LoRa.begin(frequency)) {
     Serial.println("LoRa init failed. Check your connections.");
@@ -44,21 +47,13 @@ void loop(){
   if(runEvery(1000))
   {
     //Serial.println("Read JoystickA");
-    directionA = readJoystick(xPinA,yPinA);
+    joyLeft = readJoystick(xPinA,yPinA);
+    joyLeft += 10;
     //Serial.println("Read JoystickB");
-    //directionB = readJoystick(xPinB,yPinB);
-    //Serial.println("Done Joystick");
-    if(directionA || directionB)
-    {
-      sendJoystick();
-      LoRa_rxMode();
-      taskSend = true;
-    }else if((!(directionA || directionB))&&taskSend){
-      taskSend = false;
-      LoRa_sendMessage("Stop");
-      LoRa_rxMode();
-      //Serial.println("Stop send");
-    }
+    joyRight = readJoystick(xPinB,yPinB);
+    joyRight += 20;
+
+    manageSend();
 
   }
 }
@@ -131,74 +126,54 @@ int readJoystick(int xPin,int yPin)
     Serial.print(" yValue: ");
     Serial.println(yValue);
 
-    if(xValue < 2000)
+    if((xValue < 1400)&&(yValue > 1900))
     {
       Serial.println("Left");
       return 1;
     }
-    else if(xValue > 3500)
+    else if((xValue > 2000)&&(yValue < 1400))
     {
       Serial.println("Right");
       return 2;
     }
-    else if(yValue < 2000)
-    {
-      Serial.println("Up");
-      return 3;
-    }
-    else if(yValue > 3500)
+    else if((yValue > 2500)&&(xValue < 2800))
     {
       Serial.println("Down");
+      return 3;
+    }
+    else if((xValue > 2500)&&(yValue > 1950))
+    {
+      Serial.println("Up");
       return 4;
     }else{
       return 0;
     }
 }
 
-void sendJoystick(){
+void sendJoystick(int joypos){
 
-  Serial.println(directionA);
-  Serial.println(directionB);
+  Serial.println(joypos);
 
-  if(directionA){
-    switch (directionA)
-    {
-      case 1:
-        LoRa_sendMessage("LeftA");
-        break;
-      case 2:
-        LoRa_sendMessage("RightA");
-        break;
-      case 3:
-        LoRa_sendMessage("UpA");
-        break;
-      case 4: 
-        LoRa_sendMessage("DownA");
-        break;
-      default:
-        break;
-    }
+  LoRa_sendMessage(String(joypos));
+}
+
+void manageSend()
+{
+  if(!taskLeft)
+  {
+    sendJoystick(joyLeft);
+    taskLeft = joyLeft;
+  }else if(taskLeft != joyLeft)
+  {
+    taskLeft = 0;
   }
-  //Serial.println("Done A");
-  /*
-  if(directionB){
-    switch (directionB)
-    {
-      case 1:
-        LoRa_sendMessage("LeftB");
-        break;
-      case 2:
-        LoRa_sendMessage("RightB");
-        break;
-      case 3:
-        LoRa_sendMessage("UpB");
-        break;
-      case 4: 
-        LoRa_sendMessage("DownB");
-        break;
-      default:
-        break;
-    }
+  
+  if(!taskRight)
+  {
+    sendJoystick(joyRight);
+    taskRight = joyRight;
+  }else if(taskRight != joyRight)
+  {
+    taskRight = 0;
   }
-  */
 }
